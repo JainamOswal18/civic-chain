@@ -1,10 +1,10 @@
 [package]
-name = "MessageBoard"
+name = "Civic Chain"
 version = "1.0.0"
 authors = []
 
 [addresses]
-message_board_addr = "_"
+civic_issues = "21f260bc482287686cd584a9a7e28f0b2df146497fa6a9dfa706c8a39cb1df41"
 
 [dependencies]
 AptosFramework = { git = "https://github.com/aptos-labs/aptos-framework.git", rev = "mainnet", subdir = "aptos-framework" }

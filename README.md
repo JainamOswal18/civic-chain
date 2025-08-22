@@ -38,3 +38,45 @@ Some commands are built-in the template and can be ran as a npm script, for exam
 - `npm run deploy` - a command to deploy the dapp to Vercel
 
 For all other available CLI commands, can run `npx aptos` and see a list of all available commands.
+
+
+
+project-root/
+├── Move.toml                 # Package config for Move
+├── civic_issues.move         # Smart contract source
+├── tests/                    # Unit tests for contract
+│   └── civic_issues_test.move
+├── frontend/                 # React PWA client
+│   ├── public/               # Static assets & index.html
+│   └── src/
+│       ├── components/       # Reusable UI components
+│       ├── pages/            # View-level pages (Citizen, Councillor, Dashboard)
+│       ├── services/         # Aptos SDK integration & API calls
+│       │   └── wardService.ts  # Fetch get_all_wards, compute nearest ward
+│       ├── hooks/            # React hooks for data fetching & state
+│       └── styles/           # CSS or Tailwind configuration
+└── README.md                 # Project overview and instructions
+
+
+move/
+├── civic_issues.move      # Main contract (Issue, WardInfo, registry, functions)
+├── tests/
+│   └── civic_issues_test.move
+frontend/
+└── src/
+    ├── services/
+    │   └── wardService.ts  # Fetch get_all_wards, compute nearest ward
+
+
+
+civic_issues.move: Implements all on-chain logic
+
+frontend/:
+- components/: UI widgets (IssueCard, VotingPanel, etc.)
+- pages/: Top-level views (CitizenView, CouncillorView, PublicDashboard)
+- services/: Functions calling Move view & entry functions via Aptos SDK
+- hooks/: Custom React hooks for loading/verifying data
+- styles/: Global and component-level styling
+- wardService.ts
+- - fetchWards(): calls get_all_wards()
+- - findNearestWard(lat, lon, wards[]): returns ward number

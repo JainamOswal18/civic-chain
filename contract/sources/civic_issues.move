@@ -16,7 +16,7 @@ module civic_issues {
     const SPAM: u8 = 7;
 
     // Voting thresholds
-    const CONFIRM_THRESHOLD: u64 = 5;
+    const CONFIRM_THRESHOLD: u64 = 3;
     const SPAM_THRESHOLD: u64 = 3;
     const RESOLVED_THRESHOLD: u64 = 3;
     const NOT_RESOLVED_THRESHOLD: u64 = 3;
@@ -293,4 +293,4 @@ module civic_issues {
         result
     }
 }
-}
+}   

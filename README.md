@@ -49,23 +49,25 @@ project-root/
 ├── frontend/                 # React PWA client
 │   ├── public/               # Static assets & index.html
 │   └── src/
-│       ├── components/       # Reusable UI components
-│       ├── pages/            # View-level pages (Citizen, Councillor, Dashboard)
-│       ├── services/         # Aptos SDK integration & API calls
-│       │   └── wardService.ts  # Fetch get_all_wards, compute nearest ward
-│       ├── hooks/            # React hooks for data fetching & state
-│       └── styles/           # CSS or Tailwind configuration
+        ├── services/
+        │   ├── aptosClient.ts       // Initialize AptosClient & signer wrapper
+        │   ├── WardService.ts       // fetchWards, findNearestWard
+        │   └── IssueService.ts      // view/get issues, report, vote, update
+        ├── hooks/
+        │   ├── useWallet.ts         // connect, address, isCouncillor
+        │   └── useIssues.ts         // load issues by ward, refresh
+        ├── components/
+        │   ├── IssueForm.tsx        // report issue form & location picker
+        │   ├── IssueCard.tsx        // display issue with vote buttons
+        │   ├── VoteButtons.tsx      // confirm/spam or resolved/notRes
+        │   ├── StatusControls.tsx   // for councillor actions
+        │   └── WardMap.tsx          // map rendering with issue markers
+        ├── pages/
+        │   ├── CitizenView.tsx      // wraps IssueForm + IssueList
+        │   ├── CouncillorView.tsx   // wraps StatusControls + IssueList
+        │   └── PublicDashboard.tsx  // aggregated ward performance charts
+        └── App.tsx                  // routes based on role
 └── README.md                 # Project overview and instructions
-
-
-move/
-├── civic_issues.move      # Main contract (Issue, WardInfo, registry, functions)
-├── tests/
-│   └── civic_issues_test.move
-frontend/
-└── src/
-    ├── services/
-    │   └── wardService.ts  # Fetch get_all_wards, compute nearest ward
 
 
 

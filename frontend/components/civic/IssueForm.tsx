@@ -22,7 +22,11 @@ const ISSUE_CATEGORIES = [
   "Other"
 ];
 
-export function IssueForm() {
+interface IssueFormProps {
+  onSuccess?: () => void;
+}
+
+export function IssueForm({ onSuccess }: IssueFormProps = {}) {
   const { signAndSubmitTransaction } = useWallet();
   const { location, isLoading: locationLoading, getCurrentLocation } = useUserLocation();
   const { nearestWard } = useNearestWard();
@@ -105,6 +109,11 @@ export function IssueForm() {
 
       // Invalidate queries to refresh issue lists
       invalidateAllIssues();
+      
+      // Call success callback if provided
+      if (onSuccess) {
+        onSuccess();
+      }
       
     } catch (error) {
       console.error("Error reporting issue:", error);

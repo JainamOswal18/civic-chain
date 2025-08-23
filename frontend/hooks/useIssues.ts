@@ -1,5 +1,6 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { IssueService, type Issue } from "@/services/IssueService";
+import { ISSUE_STATUS } from "@/constants";
 
 export function useAllIssues() {
   return useQuery({
@@ -62,7 +63,15 @@ export function useFilteredIssues(issues: Issue[] = [], filters: {
 
     // Exclude issues where user has already voted
     if (filters.excludeUserVoted && filters.userAddress) {
-      if (IssueService.hasUserVoted(issue, filters.userAddress)) {
+      // Check verification voting for pending verification issues
+      if (issue.status === ISSUE_STATUS.PENDING_VERIFICATION && 
+          IssueService.hasUserVoted(issue, filters.userAddress)) {
+        return false;
+      }
+      
+      // Check completion voting for pending completion verification issues
+      if (issue.status === ISSUE_STATUS.PENDING_COMPLETION_VERIFICATION && 
+          IssueService.hasUserVotedOnCompletion(issue, filters.userAddress)) {
         return false;
       }
     }

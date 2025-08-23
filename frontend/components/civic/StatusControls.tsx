@@ -13,7 +13,7 @@ interface StatusControlsProps {
 
 export function StatusControls({ issue }: StatusControlsProps) {
   const { signAndSubmitTransaction } = useWallet();
-  const { invalidateAllIssues } = useIssueActions();
+  const { invalidateIssues } = useIssueActions();
   const [isUpdating, setIsUpdating] = useState(false);
 
   // Available status transitions for councillors
@@ -49,8 +49,10 @@ export function StatusControls({ issue }: StatusControlsProps) {
         description: `Issue status updated to ${STATUS_LABELS[newStatus as keyof typeof STATUS_LABELS]}. Transaction: ${result.hash}`,
       });
 
-      // Refresh issue data
-      invalidateAllIssues();
+      // Wait a moment for blockchain to process, then refresh all issue-related data
+      setTimeout(() => {
+        invalidateIssues(); // This invalidates all queries starting with ["issues"]
+      }, 1000);
       
     } catch (error) {
       console.error("Error updating status:", error);

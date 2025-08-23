@@ -15,7 +15,7 @@ interface VoteButtonsProps {
 
 export function VoteButtons({ issue, userAddress, variant }: VoteButtonsProps) {
   const { signAndSubmitTransaction } = useWallet();
-  const { invalidateAllIssues } = useIssueActions();
+  const { invalidateIssues } = useIssueActions();
   const [isVoting, setIsVoting] = useState(false);
 
   // Check if user has already voted
@@ -60,8 +60,10 @@ export function VoteButtons({ issue, userAddress, variant }: VoteButtonsProps) {
         description: `You have ${voteType} this issue. Transaction: ${result.hash}`,
       });
 
-      // Refresh issue data
-      invalidateAllIssues();
+      // Wait a moment for blockchain to process, then refresh all issue-related data
+      setTimeout(() => {
+        invalidateIssues(); // This invalidates all queries starting with ["issues"]
+      }, 1000);
       
     } catch (error) {
       console.error("Error voting:", error);

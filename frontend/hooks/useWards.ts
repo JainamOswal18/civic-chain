@@ -41,8 +41,17 @@ export function useUserLocation() {
 
 export function useNearestWard() {
   const { data: wards = [] } = useWards();
-  const { location } = useUserLocation();
+  const { location, getCurrentLocation, isLoading: locationLoading, error: locationError } = useUserLocation();
   const [nearestWard, setNearestWard] = useState<number | null>(null);
+  const [hasAttemptedLocation, setHasAttemptedLocation] = useState(false);
+
+  // Automatically request location when wards are available and we haven't tried yet
+  useEffect(() => {
+    if (wards.length > 0 && !location && !hasAttemptedLocation && !locationLoading) {
+      setHasAttemptedLocation(true);
+      getCurrentLocation();
+    }
+  }, [wards.length, location, hasAttemptedLocation, locationLoading, getCurrentLocation]);
 
   useEffect(() => {
     if (location && wards.length > 0) {
@@ -61,5 +70,8 @@ export function useNearestWard() {
     nearestWard,
     wards,
     location,
+    locationLoading,
+    locationError,
+    getCurrentLocation,
   };
 }

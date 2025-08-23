@@ -5,7 +5,7 @@ import { useAllIssues, useFilteredIssues } from "@/hooks/useIssues";
 import { useNearestWard } from "@/hooks/useWards";
 import { ISSUE_STATUS } from "@/constants";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Loader2, Vote, Plus, Eye } from "lucide-react";
+import { Loader2, Vote, Plus, Eye, MapPin, AlertCircle } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
@@ -13,7 +13,7 @@ import { useState } from "react";
 export function CitizenView() {
   const { account } = useWallet();
   const { data: allIssues = [], isLoading } = useAllIssues();
-  const { nearestWard } = useNearestWard();
+  const { nearestWard, locationLoading, locationError, getCurrentLocation } = useNearestWard();
   const [showReportForm, setShowReportForm] = useState(false);
 
   const userAddress = account?.address.toString();
@@ -51,10 +51,35 @@ export function CitizenView() {
         <p className="text-muted-foreground">
           Report issues, vote on community reports, and track progress in your area
         </p>
-        {nearestWard && (
-          <p className="text-sm text-muted-foreground">
+        
+        {/* Location Status */}
+        {locationLoading && (
+          <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            Detecting your ward...
+          </div>
+        )}
+        
+        {nearestWard && !locationLoading && (
+          <p className="text-sm text-muted-foreground flex items-center justify-center gap-1">
+            <MapPin className="h-4 w-4" />
             Your ward: <span className="font-medium">Ward {nearestWard}</span>
           </p>
+        )}
+        
+        {locationError && !locationLoading && (
+          <div className="flex items-center justify-center gap-2 text-sm">
+            <AlertCircle className="h-4 w-4 text-orange-500" />
+            <span className="text-muted-foreground">Unable to detect ward.</span>
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              onClick={getCurrentLocation}
+              className="h-auto p-1 text-xs underline"
+            >
+              Try again
+            </Button>
+          </div>
         )}
       </div>
 

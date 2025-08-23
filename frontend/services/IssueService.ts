@@ -20,6 +20,8 @@ export interface Issue {
   created_at: number;
   updated_at: number;
   completed_at: number;
+  image_cid: string;
+  image_filenames: string[];
 }
 
 export class IssueService {
@@ -71,12 +73,14 @@ export class IssueService {
     category: string,
     description: string,
     latitude: string,
-    longitude: string
+    longitude: string,
+    imageCid: string = "",
+    imageFilenames: string[] = []
   ): InputTransactionData {
     return {
       data: {
         function: `${CIVIC_CONTRACT_ADDRESS}::civic_issues::report_issue`,
-        functionArguments: [ward, category, description, latitude, longitude],
+        functionArguments: [ward, category, description, latitude, longitude, imageCid, imageFilenames],
         typeArguments: [],
       },
     };

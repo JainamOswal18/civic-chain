@@ -6,9 +6,10 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "@/components/ui/use-toast";
 import { IssueService } from "@/services/IssueService";
+import { ImageService } from "@/services/ImageService";
 import { useUserLocation, useNearestWard } from "@/hooks/useWards";
 import { useIssueActions } from "@/hooks/useIssues";
-import { MapPin, Loader2 } from "lucide-react";
+import { MapPin, Loader2, Upload, X, Image as ImageIcon } from "lucide-react";
 
 const ISSUE_CATEGORIES = [
   "Road Maintenance",
@@ -33,6 +34,8 @@ export function IssueForm({ onSuccess }: IssueFormProps = {}) {
   const { invalidateAllIssues } = useIssueActions();
 
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isUploadingImages, setIsUploadingImages] = useState(false);
+  const [selectedImages, setSelectedImages] = useState<File[]>([]);
   const [formData, setFormData] = useState({
     category: "",
     description: "",
@@ -41,6 +44,33 @@ export function IssueForm({ onSuccess }: IssueFormProps = {}) {
 
   const handleLocationClick = () => {
     getCurrentLocation();
+  };
+
+  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    
+    if (files.length === 0) return;
+
+    const validation = ImageService.validateImageFiles(files);
+    
+    if (!validation.isValid) {
+      toast({
+        variant: "destructive",
+        title: "Invalid Images",
+        description: validation.errors.join(", "),
+      });
+      return;
+    }
+
+    setSelectedImages(files);
+  };
+
+  const removeImage = (index: number) => {
+    setSelectedImages(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const clearAllImages = () => {
+    setSelectedImages([]);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -85,12 +115,41 @@ export function IssueForm({ onSuccess }: IssueFormProps = {}) {
 
     setIsSubmitting(true);
     try {
+      let imageCid = "";
+      let imageFilenames: string[] = [];
+
+      // Upload images if any are selected
+      if (selectedImages.length > 0) {
+        setIsUploadingImages(true);
+        try {
+          const uploadResult = await ImageService.uploadImagesWithJWT(selectedImages);
+          imageCid = uploadResult.cid;
+          imageFilenames = uploadResult.filenames;
+          
+          toast({
+            title: "Images Uploaded",
+            description: `${selectedImages.length} images uploaded to IPFS successfully.`,
+          });
+        } catch (uploadError) {
+          console.error("Image upload failed:", uploadError);
+          toast({
+            variant: "destructive",
+            title: "Image Upload Failed",
+            description: "Failed to upload images. Proceeding without images.",
+          });
+        } finally {
+          setIsUploadingImages(false);
+        }
+      }
+
       const transaction = IssueService.reportIssue(
         nearestWard,
         category.trim(),
         formData.description.trim(),
         location.latitude.toString(),
-        location.longitude.toString()
+        location.longitude.toString(),
+        imageCid,
+        imageFilenames
       );
 
       const result = await signAndSubmitTransaction(transaction);
@@ -106,6 +165,7 @@ export function IssueForm({ onSuccess }: IssueFormProps = {}) {
         description: "",
         customCategory: "",
       });
+      setSelectedImages([]);
 
       // Invalidate queries to refresh issue lists
       invalidateAllIssues();
@@ -214,15 +274,91 @@ export function IssueForm({ onSuccess }: IssueFormProps = {}) {
             />
           </div>
 
+          {/* Image Upload */}
+          <div className="space-y-2">
+            <Label htmlFor="images">Images (Optional)</Label>
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
+                <Input
+                  id="images"
+                  type="file"
+                  multiple
+                  accept="image/*"
+                  onChange={handleImageSelect}
+                  className="hidden"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => document.getElementById('images')?.click()}
+                  className="flex items-center gap-2"
+                  disabled={isSubmitting}
+                >
+                  <Upload className="h-4 w-4" />
+                  Choose Images
+                </Button>
+                {selectedImages.length > 0 && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={clearAllImages}
+                    className="text-red-600 hover:text-red-700"
+                  >
+                    Clear All
+                  </Button>
+                )}
+              </div>
+              
+              {selectedImages.length > 0 && (
+                <div className="space-y-2">
+                  <p className="text-sm text-muted-foreground">
+                    {selectedImages.length} image{selectedImages.length > 1 ? 's' : ''} selected
+                  </p>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                    {selectedImages.map((file, index) => (
+                      <div key={index} className="relative group">
+                        <div className="aspect-square bg-gray-100 rounded-lg overflow-hidden border">
+                          <img
+                            src={URL.createObjectURL(file)}
+                            alt={`Preview ${index + 1}`}
+                            className="w-full h-full object-cover"
+                          />
+                          <Button
+                            type="button"
+                            variant="destructive"
+                            size="sm"
+                            onClick={() => removeImage(index)}
+                            className="absolute top-1 right-1 h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                          >
+                            <X className="h-3 w-3" />
+                          </Button>
+                        </div>
+                        <p className="text-xs text-center mt-1 truncate">
+                          {file.name}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              
+              <p className="text-xs text-muted-foreground">
+                <ImageIcon className="inline h-3 w-3 mr-1" />
+                Max 10 images, 10MB each. Supported: JPG, PNG, GIF, WebP
+              </p>
+            </div>
+          </div>
+
           <Button
             type="submit"
-            disabled={isSubmitting || !location || !nearestWard}
+            disabled={isSubmitting || isUploadingImages || !location || !nearestWard}
             className="w-full"
           >
             {isSubmitting ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Reporting Issue...
+                {isUploadingImages ? "Uploading Images..." : "Reporting Issue..."}
               </>
             ) : (
               "Report Issue"

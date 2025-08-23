@@ -39,7 +39,9 @@ module civic_issues {
         completion_voters: vector<address>,
         created_at: u64,
         updated_at: u64,
-        completed_at: u64
+        completed_at: u64,
+        image_cid: String,
+        image_filenames: vector<String>
     }
 
     /// Registry holding all issues
@@ -129,7 +131,9 @@ module civic_issues {
         category: String,
         description: String,
         latitude: String,
-        longitude: String
+        longitude: String,
+        image_cid: String,
+        image_filenames: vector<String>
     ) acquires CivicRegistry {
         let registry = borrow_global_mut<CivicRegistry>(@civic_issues);
         let issue_id = registry.next_issue_id;
@@ -152,7 +156,9 @@ module civic_issues {
             completion_voters: vector::empty<address>(),
             created_at: now,
             updated_at: now,
-            completed_at: 0
+            completed_at: 0,
+            image_cid,
+            image_filenames
         };
 
         vector::push_back(&mut registry.issues, issue);

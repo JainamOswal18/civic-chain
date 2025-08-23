@@ -68,7 +68,7 @@ export function IssueCard({
             {issue.category}
           </CardTitle>
           <Badge className={`${getStatusColor(issue.status)} border`}>
-            {STATUS_LABELS[issue.status]}
+            {STATUS_LABELS[issue.status as keyof typeof STATUS_LABELS]}
           </Badge>
         </div>
       </CardHeader>

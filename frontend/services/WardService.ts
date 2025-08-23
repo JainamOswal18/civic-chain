@@ -66,20 +66,38 @@ export class WardService {
    */
   static getCurrentLocation(): Promise<{ latitude: number; longitude: number }> {
     return new Promise((resolve, reject) => {
+      console.log("WardService.getCurrentLocation called");
+      
       if (!navigator.geolocation) {
+        console.error("Geolocation not supported");
         reject(new Error("Geolocation is not supported by this browser"));
         return;
       }
 
+      console.log("Requesting geolocation...");
       navigator.geolocation.getCurrentPosition(
         (position) => {
+          console.log("Geolocation success:", position.coords);
           resolve({
             latitude: position.coords.latitude,
             longitude: position.coords.longitude,
           });
         },
         (error) => {
-          reject(error);
+          console.error("Geolocation error:", error);
+          let errorMessage = "Failed to get location";
+          switch(error.code) {
+            case error.PERMISSION_DENIED:
+              errorMessage = "Location access denied by user";
+              break;
+            case error.POSITION_UNAVAILABLE:
+              errorMessage = "Location information unavailable";
+              break;
+            case error.TIMEOUT:
+              errorMessage = "Location request timeout";
+              break;
+          }
+          reject(new Error(errorMessage));
         },
         {
           enableHighAccuracy: true,

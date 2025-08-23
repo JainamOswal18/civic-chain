@@ -46,7 +46,7 @@ export function StatusControls({ issue }: StatusControlsProps) {
       
       toast({
         title: "Status Updated",
-        description: `Issue status updated to ${STATUS_LABELS[newStatus]}. Transaction: ${result.hash}`,
+        description: `Issue status updated to ${STATUS_LABELS[newStatus as keyof typeof STATUS_LABELS]}. Transaction: ${result.hash}`,
       });
 
       // Refresh issue data

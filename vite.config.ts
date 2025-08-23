@@ -25,10 +25,22 @@ export default defineConfig({
     },
   },
   optimizeDeps: {
+    include: [
+      '@wallet-standard/core',
+      '@wallet-standard/features', 
+      '@wallet-standard/wallet',
+      'aptos',
+      'react-leaflet',
+      'leaflet',
+      'framer-motion'
+    ],
     esbuildOptions: {
       define: {
         global: 'globalThis',
       },
     },
+  },
+  define: {
+    global: 'globalThis',
   },
 });

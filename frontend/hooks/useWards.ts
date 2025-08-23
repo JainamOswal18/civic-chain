@@ -17,13 +17,17 @@ export function useUserLocation() {
   const [isLoading, setIsLoading] = useState(false);
 
   const getCurrentLocation = async () => {
+    console.log("getCurrentLocation called");
     setIsLoading(true);
     setError(null);
     
     try {
+      console.log("Requesting location from WardService...");
       const position = await WardService.getCurrentLocation();
+      console.log("Location received:", position);
       setLocation(position);
     } catch (err) {
+      console.error("Location error:", err);
       setError(err instanceof Error ? err.message : "Failed to get location");
       setLocation(null);
     } finally {

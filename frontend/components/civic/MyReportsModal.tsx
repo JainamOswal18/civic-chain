@@ -134,7 +134,7 @@ export function MyReportsModal({ open, onOpenChange, onReportNew }: MyReportsMod
                   <div key={issue.id} className="border border-gray-200 rounded-lg p-4 bg-white">
                     <div className="flex justify-between items-start mb-3">
                       <Badge className={getStatusColor(issue.status)}>
-                        {STATUS_LABELS[issue.status]}
+                        {STATUS_LABELS[issue.status as keyof typeof STATUS_LABELS]}
                       </Badge>
                       <div className="text-xs text-gray-500">
                         Reported {new Date(issue.created_at * 1000).toLocaleDateString()}

@@ -7,9 +7,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "@/components/ui/use-toast";
 import { IssueService } from "@/services/IssueService";
 import { ImageService } from "@/services/ImageService";
-import { useUserLocation, useNearestWard } from "@/hooks/useWards";
+import { useUserLocation, useNearestWard, useWards } from "@/hooks/useWards";
 import { useIssueActions } from "@/hooks/useIssues";
-import { MapPin, Loader2, Upload, X, Image as ImageIcon } from "lucide-react";
+import { WardService } from "@/services/WardService";
+import { MapPin, Loader2, Upload, X, Image as ImageIcon, Navigation, Edit3 } from "lucide-react";
 
 const ISSUE_CATEGORIES = [
   "Road Maintenance",
@@ -31,11 +32,17 @@ export function IssueForm({ onSuccess }: IssueFormProps = {}) {
   const { signAndSubmitTransaction } = useWallet();
   const { location, isLoading: locationLoading, getCurrentLocation } = useUserLocation();
   const { nearestWard } = useNearestWard();
+  const { data: wards = [], isLoading: wardsLoading } = useWards();
   const { invalidateAllIssues } = useIssueActions();
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isUploadingImages, setIsUploadingImages] = useState(false);
   const [selectedImages, setSelectedImages] = useState<File[]>([]);
+  const [useManualLocation, setUseManualLocation] = useState(false);
+  const [manualLocation, setManualLocation] = useState({
+    latitude: "",
+    longitude: "",
+  });
   const [formData, setFormData] = useState({
     category: "",
     description: "",
@@ -44,6 +51,49 @@ export function IssueForm({ onSuccess }: IssueFormProps = {}) {
 
   const handleLocationClick = () => {
     getCurrentLocation();
+  };
+
+  const validateCoordinates = (lat: string, lng: string): boolean => {
+    const latitude = parseFloat(lat);
+    const longitude = parseFloat(lng);
+    
+    return !isNaN(latitude) && 
+           !isNaN(longitude) && 
+           latitude >= -90 && 
+           latitude <= 90 && 
+           longitude >= -180 && 
+           longitude <= 180;
+  };
+
+  const calculateWardFromCoordinates = (lat: number, lng: number): number | null => {
+    // Use the actual ward data from the contract to find the nearest ward
+    // This makes it dynamic and scalable for any number of wards
+    if (wards.length === 0) {
+      console.warn("No wards available for calculation");
+      return null;
+    }
+    
+    return WardService.findNearestWard(lat, lng, wards);
+  };
+
+  const getCurrentLocationData = () => {
+    if (useManualLocation) {
+      if (!validateCoordinates(manualLocation.latitude, manualLocation.longitude)) {
+        return null;
+      }
+      const lat = parseFloat(manualLocation.latitude);
+      const lng = parseFloat(manualLocation.longitude);
+      return {
+        latitude: lat,
+        longitude: lng,
+        ward: calculateWardFromCoordinates(lat, lng)
+      };
+    }
+    return location ? {
+      latitude: location.latitude,
+      longitude: location.longitude,
+      ward: nearestWard
+    } : null;
   };
 
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -76,16 +126,20 @@ export function IssueForm({ onSuccess }: IssueFormProps = {}) {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!location) {
+    const locationData = getCurrentLocationData();
+    
+    if (!locationData) {
       toast({
         variant: "destructive",
         title: "Location Required",
-        description: "Please enable location access to report an issue.",
+        description: useManualLocation 
+          ? "Please enter valid latitude and longitude coordinates." 
+          : "Please enable location access to report an issue.",
       });
       return;
     }
 
-    if (!nearestWard) {
+    if (!locationData.ward) {
       toast({
         variant: "destructive",
         title: "Ward Not Found",
@@ -143,11 +197,11 @@ export function IssueForm({ onSuccess }: IssueFormProps = {}) {
       }
 
       const transaction = IssueService.reportIssue(
-        nearestWard,
+        locationData.ward,
         category.trim(),
         formData.description.trim(),
-        location.latitude.toString(),
-        location.longitude.toString(),
+        locationData.latitude.toString(),
+        locationData.longitude.toString(),
         imageCid,
         imageFilenames
       );
@@ -166,6 +220,10 @@ export function IssueForm({ onSuccess }: IssueFormProps = {}) {
         customCategory: "",
       });
       setSelectedImages([]);
+      setManualLocation({
+        latitude: "",
+        longitude: "",
+      });
 
       // Invalidate queries to refresh issue lists
       invalidateAllIssues();
@@ -188,43 +246,155 @@ export function IssueForm({ onSuccess }: IssueFormProps = {}) {
   };
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <MapPin className="h-5 w-5" />
-          Report a Civic Issue
-        </CardTitle>
-      </CardHeader>
-      <CardContent>
-        <form onSubmit={handleSubmit} className="space-y-4">
+    <div className="w-full">
+      <form onSubmit={handleSubmit} className="space-y-8">
           {/* Location Section */}
-          <div className="space-y-2">
-            <Label>Location</Label>
-            <div className="flex items-center gap-2">
+          <div className="space-y-4 p-6 bg-white/90 backdrop-blur-sm rounded-2xl border border-gray-100/50 shadow-lg">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-blue-100 rounded-xl">
+                <MapPin className="h-5 w-5 text-blue-600" />
+              </div>
+              <div>
+                <Label className="text-lg font-bold text-gray-900">Location Information</Label>
+                <p className="text-sm text-gray-600 mt-1">Choose how to specify the issue location</p>
+              </div>
+            </div>
+            
+            {/* Location Method Toggle */}
+            <div className="flex items-center gap-3 p-3 bg-gradient-to-r from-gray-50 to-blue-50/30 rounded-xl border border-gray-100/50">
               <Button
                 type="button"
-                variant="outline"
-                onClick={handleLocationClick}
-                disabled={locationLoading}
-                className="flex items-center gap-2"
+                variant={!useManualLocation ? "default" : "outline"}
+                size="sm"
+                onClick={() => setUseManualLocation(false)}
+                className={`flex items-center gap-2 transition-all duration-300 ${!useManualLocation ? 'bg-gradient-to-r from-blue-600 to-blue-700 text-white shadow-lg' : 'hover:bg-blue-50'}`}
               >
-                {locationLoading ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <MapPin className="h-4 w-4" />
-                )}
-                {locationLoading ? "Getting Location..." : "Get Current Location"}
+                <Navigation className="h-4 w-4" />
+                GPS Location
               </Button>
-              {location && (
-                <span className="text-sm text-muted-foreground">
-                  Ward: {nearestWard || "Unknown"}
-                </span>
-              )}
+              <Button
+                type="button"
+                variant={useManualLocation ? "default" : "outline"}
+                size="sm"
+                onClick={() => setUseManualLocation(true)}
+                className={`flex items-center gap-2 transition-all duration-300 ${useManualLocation ? 'bg-gradient-to-r from-purple-600 to-purple-700 text-white shadow-lg' : 'hover:bg-purple-50'}`}
+              >
+                <Edit3 className="h-4 w-4" />
+                Manual Entry
+              </Button>
             </div>
-            {location && (
-              <p className="text-xs text-muted-foreground">
-                Coordinates: {location.latitude.toFixed(6)}, {location.longitude.toFixed(6)}
-              </p>
+
+            {/* GPS Location */}
+            {!useManualLocation && (
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={handleLocationClick}
+                    disabled={locationLoading}
+                    className="flex items-center gap-2"
+                  >
+                    {locationLoading ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <MapPin className="h-4 w-4" />
+                    )}
+                    {locationLoading ? "Getting Location..." : "Get Current Location"}
+                  </Button>
+                  {location && (
+                    <span className="text-sm text-muted-foreground">
+                      Ward: {nearestWard || "Unknown"}
+                    </span>
+                  )}
+                </div>
+                {location && (
+                  <p className="text-xs text-muted-foreground">
+                    Coordinates: {location.latitude.toFixed(6)}, {location.longitude.toFixed(6)}
+                  </p>
+                )}
+              </div>
+            )}
+
+            {/* Manual Location Entry */}
+            {useManualLocation && (
+              <div className="space-y-3">
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <Label htmlFor="latitude" className="text-sm">Latitude</Label>
+                    <Input
+                      id="latitude"
+                      type="number"
+                      step="any"
+                      placeholder="e.g., 18.5204"
+                      value={manualLocation.latitude}
+                      onChange={(e) => setManualLocation({ ...manualLocation, latitude: e.target.value })}
+                      className="text-sm"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor="longitude" className="text-sm">Longitude</Label>
+                    <Input
+                      id="longitude"
+                      type="number"
+                      step="any"
+                      placeholder="e.g., 73.8567"
+                      value={manualLocation.longitude}
+                      onChange={(e) => setManualLocation({ ...manualLocation, longitude: e.target.value })}
+                      className="text-sm"
+                    />
+                  </div>
+                </div>
+                
+                {/* Show calculated ward for manual coordinates */}
+                {validateCoordinates(manualLocation.latitude, manualLocation.longitude) && (
+                  (() => {
+                    if (wardsLoading) {
+                      return (
+                        <div className="flex items-center gap-2 p-2 bg-blue-50 border border-blue-200 rounded-md">
+                          <Loader2 className="h-4 w-4 text-blue-600 animate-spin" />
+                          <span className="text-sm text-blue-700">
+                            Loading ward information...
+                          </span>
+                        </div>
+                      );
+                    }
+                    
+                    const calculatedWard = calculateWardFromCoordinates(
+                      parseFloat(manualLocation.latitude), 
+                      parseFloat(manualLocation.longitude)
+                    );
+                    
+                    return calculatedWard ? (
+                      <div className="flex items-center gap-2 p-2 bg-green-50 border border-green-200 rounded-md">
+                        <MapPin className="h-4 w-4 text-green-600" />
+                        <span className="text-sm text-green-700">
+                          Ward: {calculatedWard}
+                        </span>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2 p-2 bg-yellow-50 border border-yellow-200 rounded-md">
+                        <MapPin className="h-4 w-4 text-yellow-600" />
+                        <span className="text-sm text-yellow-700">
+                          No nearby ward found for these coordinates
+                        </span>
+                      </div>
+                    );
+                  })()
+                )}
+                
+                {/* Validation error for invalid coordinates */}
+                {(manualLocation.latitude || manualLocation.longitude) && 
+                 !validateCoordinates(manualLocation.latitude, manualLocation.longitude) && (
+                  <p className="text-xs text-red-600">
+                    Please enter valid coordinates (Latitude: -90 to 90, Longitude: -180 to 180)
+                  </p>
+                )}
+                
+                <p className="text-xs text-muted-foreground">
+                  💡 Tip: You can find coordinates using Google Maps by right-clicking on a location
+                </p>
+              </div>
             )}
           </div>
 
@@ -352,7 +522,7 @@ export function IssueForm({ onSuccess }: IssueFormProps = {}) {
 
           <Button
             type="submit"
-            disabled={isSubmitting || isUploadingImages || !location || !nearestWard}
+            disabled={isSubmitting || isUploadingImages || !getCurrentLocationData()}
             className="w-full"
           >
             {isSubmitting ? (
@@ -364,8 +534,7 @@ export function IssueForm({ onSuccess }: IssueFormProps = {}) {
               "Report Issue"
             )}
           </Button>
-        </form>
-      </CardContent>
-    </Card>
+      </form>
+    </div>
   );
 }

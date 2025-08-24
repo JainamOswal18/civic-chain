@@ -5,9 +5,13 @@ import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Eye, MapPin, Clock, User, Map as MapIcon } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Eye, MapPin, Clock, User, Map as MapIcon, X, ExternalLink, Calendar, Vote as VoteIcon, CheckCircle2, AlertTriangle } from 'lucide-react';
 import { ISSUE_STATUS, STATUS_LABELS } from '@/constants';
 import { type Issue } from '@/services/IssueService';
+import { ImageService } from '@/services/ImageService';
+import { VoteButtons } from './VoteButtons';
+import { useWallet } from "@aptos-labs/wallet-adapter-react";
 
 // Fix for default marker icon
 delete (L.Icon.Default.prototype as any)._getIconUrl;
@@ -55,6 +59,9 @@ const categoryColors: Record<string, string> = {
 export function IssuesMap({ issues, center, userLocation, hasNewData = false, className = "" }: IssuesMapProps) {
   const mapRef = useRef<L.Map>(null);
   const [mapError, setMapError] = useState<string | null>(null);
+  const [selectedIssue, setSelectedIssue] = useState<Issue | null>(null);
+  const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
+  const { account } = useWallet();
 
   // Debug logging
   useEffect(() => {
@@ -94,18 +101,47 @@ export function IssuesMap({ issues, center, userLocation, hasNewData = false, cl
   // Create user location marker with higher z-index
   const createUserLocationMarker = () => {
     const markerHtml = `
-      <div class="relative z-50" style="z-index: 1000;">
-        <div class="w-5 h-5 bg-blue-600 rounded-full border-3 border-white shadow-xl animate-pulse"></div>
-        <div class="absolute inset-0 w-5 h-5 bg-blue-400 rounded-full animate-ping opacity-60"></div>
-        <div class="absolute inset-0 w-8 h-8 -m-1.5 bg-blue-200 rounded-full animate-ping opacity-30"></div>
+      <div class="relative z-50 flex items-center justify-center" style="z-index: 1000;">
+        <!-- Outer pulsing ring -->
+        <div class="absolute w-12 h-12 bg-gradient-to-r from-blue-400 to-purple-500 rounded-full animate-ping opacity-20"></div>
+        <div class="absolute w-8 h-8 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full animate-ping opacity-40 animation-delay-300"></div>
+        
+        <!-- Main marker body -->
+        <div class="relative w-6 h-6 bg-gradient-to-br from-blue-500 via-blue-600 to-purple-600 rounded-full border-2 border-white shadow-2xl">
+          <!-- Inner glow -->
+          <div class="absolute inset-0.5 bg-gradient-to-br from-white to-blue-100 rounded-full opacity-30"></div>
+          
+          <!-- Center dot -->
+          <div class="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-2 h-2 bg-white rounded-full shadow-inner"></div>
+          
+          <!-- Directional indicator (small arrow pointing up) -->
+          <div class="absolute -top-1 left-1/2 transform -translate-x-1/2">
+            <div class="w-0 h-0 border-l-2 border-r-2 border-b-3 border-transparent border-b-white drop-shadow-sm"></div>
+          </div>
+        </div>
+        
+        <!-- Accuracy circle -->
+        <div class="absolute w-16 h-16 border border-blue-300 rounded-full opacity-25 animate-pulse"></div>
       </div>
+      
+      <style>
+        @keyframes delayed-ping {
+          75%, 100% {
+            transform: scale(2);
+            opacity: 0;
+          }
+        }
+        .animation-delay-300 {
+          animation-delay: 300ms;
+        }
+      </style>
     `;
 
     return L.divIcon({
       html: markerHtml,
       className: 'user-location-marker',
-      iconSize: [20, 20],
-      iconAnchor: [10, 10],
+      iconSize: [32, 32],
+      iconAnchor: [16, 16],
     });
   };
 
@@ -165,6 +201,18 @@ export function IssuesMap({ issues, center, userLocation, hasNewData = false, cl
     return isNaN(num) ? 0 : num;
   };
 
+  // Open issue details modal
+  const openIssueDetails = (issue: Issue) => {
+    setSelectedIssue(issue);
+    setIsDetailsModalOpen(true);
+  };
+
+  // Close issue details modal
+  const closeIssueDetails = () => {
+    setSelectedIssue(null);
+    setIsDetailsModalOpen(false);
+  };
+
   // Pan to center when it changes
   useEffect(() => {
     if (mapRef.current) {
@@ -206,25 +254,61 @@ export function IssuesMap({ issues, center, userLocation, hasNewData = false, cl
         )}
       </AnimatePresence>
 
-      {/* Legend */}
-      <div className="absolute top-4 left-4 z-[1000] bg-white/90 backdrop-blur-sm rounded-lg p-3 shadow-lg max-w-[200px]">
+      {/* Legend - Dynamic based on issues present */}
+      <div className="absolute top-4 left-4 z-[1000] bg-white/90 backdrop-blur-sm rounded-lg p-3 shadow-lg max-w-[220px]">
         <h4 className="text-sm font-semibold mb-2">Issue Status</h4>
-        <div className="space-y-1">
-          <div className="flex items-center gap-2 text-xs">
-            <div className="w-3 h-3 rounded-full bg-red-500"></div>
-            <span>Pending</span>
-          </div>
-          <div className="flex items-center gap-2 text-xs">
-            <div className="w-3 h-3 rounded-full bg-purple-500"></div>
-            <span>In Progress</span>
-          </div>
-          <div className="flex items-center gap-2 text-xs">
-            <div className="w-3 h-3 rounded-full bg-green-500"></div>
-            <span>Resolved</span>
-          </div>
+        <div className="space-y-1.5">
+          {/* Show only statuses that exist in current issues */}
+          {[
+            { status: ISSUE_STATUS.PENDING_VERIFICATION, color: '#ef4444', label: 'Pending Verification' },
+            { status: ISSUE_STATUS.VERIFIED, color: '#f59e0b', label: 'Verified' },
+            { status: ISSUE_STATUS.ACKNOWLEDGED, color: '#3b82f6', label: 'Acknowledged' },
+            { status: ISSUE_STATUS.IN_PROGRESS, color: '#8b5cf6', label: 'In Progress' },
+            { status: ISSUE_STATUS.COMPLETED, color: '#10b981', label: 'Completed' },
+            { status: ISSUE_STATUS.PENDING_COMPLETION_VERIFICATION, color: '#06b6d4', label: 'Pending Completion' },
+            { status: ISSUE_STATUS.FULLY_RESOLVED, color: '#22c55e', label: 'Fully Resolved' },
+            { status: ISSUE_STATUS.SPAM, color: '#6b7280', label: 'Spam' }
+          ]
+            .filter(statusInfo => issues.some(issue => issue.status === statusInfo.status))
+            .map(statusInfo => (
+              <div key={statusInfo.status} className="flex items-center gap-2 text-xs">
+                <div 
+                  className="w-3 h-3 rounded-full border border-gray-200" 
+                  style={{ backgroundColor: statusInfo.color }}
+                ></div>
+                <span>{statusInfo.label}</span>
+                <span className="text-gray-400 ml-auto">
+                  ({issues.filter(issue => issue.status === statusInfo.status).length})
+                </span>
+              </div>
+            ))}
+          
+          {/* Show all statuses if no issues are present */}
+          {issues.length === 0 && [
+            { color: '#ef4444', label: 'Pending Verification' },
+            { color: '#f59e0b', label: 'Verified' },
+            { color: '#3b82f6', label: 'Acknowledged' },
+            { color: '#8b5cf6', label: 'In Progress' },
+            { color: '#10b981', label: 'Completed' },
+            { color: '#06b6d4', label: 'Pending Completion' },
+            { color: '#22c55e', label: 'Fully Resolved' },
+            { color: '#6b7280', label: 'Spam' }
+          ].map((statusInfo, index) => (
+            <div key={index} className="flex items-center gap-2 text-xs opacity-60">
+              <div 
+                className="w-3 h-3 rounded-full border border-gray-200" 
+                style={{ backgroundColor: statusInfo.color }}
+              ></div>
+              <span>{statusInfo.label}</span>
+            </div>
+          ))}
+          
           {userLocation && (
-            <div className="flex items-center gap-2 text-xs pt-1 border-t">
-              <div className="w-3 h-3 rounded-full bg-blue-600"></div>
+            <div className="flex items-center gap-2 text-xs pt-2 border-t mt-2">
+              <div className="relative w-4 h-4 flex items-center justify-center">
+                <div className="w-3 h-3 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full border border-white shadow-sm"></div>
+                <div className="absolute w-4 h-4 border border-blue-300 rounded-full opacity-30"></div>
+              </div>
               <span>Your Location</span>
             </div>
           )}
@@ -337,10 +421,7 @@ export function IssuesMap({ issues, center, userLocation, hasNewData = false, cl
                   <Button 
                     size="sm" 
                     className="w-full text-xs bg-blue-600 hover:bg-blue-700"
-                    onClick={() => {
-                      // You can add navigation logic here if needed
-                      console.log(`View details for issue ${issue.id}`);
-                    }}
+                    onClick={() => openIssueDetails(issue)}
                   >
                     <Eye className="w-3 h-3 mr-1" />
                     View Details
@@ -361,20 +442,230 @@ export function IssuesMap({ issues, center, userLocation, hasNewData = false, cl
               add: () => console.log("User location marker added to map"),
             }}
           >
-            <Popup className="custom-popup">
-              <div className="p-2 text-center">
-                <div className="flex items-center justify-center gap-1 mb-1">
-                  <User className="w-4 h-4 text-blue-600" />
-                  <span className="font-semibold text-sm">Your Location</span>
+            <Popup className="custom-popup" maxWidth={250}>
+              <div className="p-3 text-center">
+                <div className="flex items-center justify-center gap-2 mb-2">
+                  <div className="p-1.5 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full">
+                    <User className="w-4 h-4 text-white" />
+                  </div>
+                  <span className="font-semibold text-base text-gray-900">Your Location</span>
                 </div>
-                <p className="text-xs text-gray-600">
-                  Current position detected
+                <p className="text-sm text-gray-600 mb-2">
+                  📍 Current position detected
                 </p>
+                <div className="text-xs text-gray-500 bg-gray-50 rounded-lg p-2">
+                  <div className="flex items-center justify-center gap-1">
+                    <MapPin className="w-3 h-3" />
+                    <span>Coordinates: {userLocation[0].toFixed(6)}, {userLocation[1].toFixed(6)}</span>
+                  </div>
+                </div>
               </div>
             </Popup>
           </Marker>
         )}
       </MapContainer>
+
+      {/* Issue Details Modal */}
+      <Dialog open={isDetailsModalOpen} onOpenChange={closeIssueDetails}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          {selectedIssue && (
+            <>
+              <DialogHeader className="pb-4 border-b">
+                <DialogTitle className="text-2xl font-bold text-gray-900 mb-2">
+                  Issue #{selectedIssue.id}
+                </DialogTitle>
+                <div className="flex items-center gap-2">
+                  <Badge className={`${getStatusColor(selectedIssue.status)}`}>
+                    {STATUS_LABELS[selectedIssue.status as keyof typeof STATUS_LABELS]}
+                  </Badge>
+                  <Badge variant="outline">
+                    {selectedIssue.category}
+                  </Badge>
+                  <Badge variant="outline">
+                    Ward {selectedIssue.ward}
+                  </Badge>
+                </div>
+              </DialogHeader>
+
+              <div className="grid md:grid-cols-2 gap-6 py-4">
+                {/* Left Column - Main Information */}
+                <div className="space-y-4">
+                  {/* Description */}
+                  <div>
+                    <h3 className="font-semibold text-lg mb-2">Description</h3>
+                    <p className="text-gray-700 leading-relaxed">
+                      {selectedIssue.description}
+                    </p>
+                  </div>
+
+                  {/* Location & Meta Info */}
+                  <div className="space-y-3">
+                    <h3 className="font-semibold text-lg">Details</h3>
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2 text-sm">
+                        <MapPin className="w-4 h-4 text-gray-500" />
+                        <span>Ward {selectedIssue.ward}</span>
+                        {userLocation && (
+                          <span className="text-gray-500">
+                            • {calculateDistance(
+                              userLocation[0], 
+                              userLocation[1], 
+                              parseCoordinate(selectedIssue.latitude), 
+                              parseCoordinate(selectedIssue.longitude)
+                            ).toFixed(1)} km away
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2 text-sm">
+                        <Calendar className="w-4 h-4 text-gray-500" />
+                        <span>Reported {formatTimeAgo(selectedIssue.created_at * 1000)}</span>
+                      </div>
+                      <div className="flex items-center gap-2 text-sm">
+                        <User className="w-4 h-4 text-gray-500" />
+                        <span>Reporter: {selectedIssue.reporter.slice(0, 12)}...{selectedIssue.reporter.slice(-8)}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Voting Section */}
+                  {(selectedIssue.status === ISSUE_STATUS.PENDING_VERIFICATION || 
+                    selectedIssue.status === ISSUE_STATUS.PENDING_COMPLETION_VERIFICATION) && account && (
+                    <div className="space-y-3">
+                      <h3 className="font-semibold text-lg flex items-center gap-2">
+                        <VoteIcon className="w-5 h-5" />
+                        Community Voting
+                      </h3>
+                      <div className="p-4 bg-gray-50 rounded-lg">
+                        {selectedIssue.status === ISSUE_STATUS.PENDING_VERIFICATION && (
+                          <div>
+                            <p className="text-sm text-gray-600 mb-3">
+                              Help verify if this is a legitimate civic issue:
+                            </p>
+                            <VoteButtons 
+                              issue={selectedIssue} 
+                              userAddress={account.address.toString()} 
+                              variant="verification" 
+                            />
+                          </div>
+                        )}
+                        {selectedIssue.status === ISSUE_STATUS.PENDING_COMPLETION_VERIFICATION && (
+                          <div>
+                            <p className="text-sm text-gray-600 mb-3">
+                              Has this issue been resolved?
+                            </p>
+                            <VoteButtons 
+                              issue={selectedIssue} 
+                              userAddress={account.address.toString()} 
+                              variant="completion" 
+                            />
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Vote Counts */}
+                  <div className="space-y-3">
+                    <h3 className="font-semibold text-lg">Vote Summary</h3>
+                    <div className="grid grid-cols-2 gap-3">
+                      {selectedIssue.status >= ISSUE_STATUS.PENDING_VERIFICATION && (
+                        <>
+                          <div className="flex items-center gap-2 p-3 bg-green-50 rounded-lg">
+                            <CheckCircle2 className="w-5 h-5 text-green-600" />
+                            <div>
+                              <div className="font-semibold text-green-800">{selectedIssue.confirm_votes}</div>
+                              <div className="text-xs text-green-600">Confirmed</div>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2 p-3 bg-red-50 rounded-lg">
+                            <AlertTriangle className="w-5 h-5 text-red-600" />
+                            <div>
+                              <div className="font-semibold text-red-800">{selectedIssue.spam_votes}</div>
+                              <div className="text-xs text-red-600">Spam Reports</div>
+                            </div>
+                          </div>
+                        </>
+                      )}
+                      {selectedIssue.status >= ISSUE_STATUS.PENDING_COMPLETION_VERIFICATION && (
+                        <>
+                          <div className="flex items-center gap-2 p-3 bg-emerald-50 rounded-lg">
+                            <CheckCircle2 className="w-5 h-5 text-emerald-600" />
+                            <div>
+                              <div className="font-semibold text-emerald-800">{selectedIssue.resolved_votes}</div>
+                              <div className="text-xs text-emerald-600">Resolved</div>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2 p-3 bg-orange-50 rounded-lg">
+                            <AlertTriangle className="w-5 h-5 text-orange-600" />
+                            <div>
+                              <div className="font-semibold text-orange-800">{selectedIssue.not_resolved_votes}</div>
+                              <div className="text-xs text-orange-600">Not Resolved</div>
+                            </div>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Right Column - Images */}
+                <div className="space-y-4">
+                  <h3 className="font-semibold text-lg">Visual Evidence</h3>
+                  {selectedIssue.image_filenames && selectedIssue.image_filenames.length > 0 ? (
+                    <div className="grid grid-cols-2 gap-3">
+                      {selectedIssue.image_filenames.map((filename, index) => (
+                        <div key={index} className="relative group">
+                          <img
+                            src={ImageService.getImageUrl(selectedIssue.image_cid, filename)}
+                            alt={`Issue evidence ${index + 1}`}
+                            className="w-full h-32 object-cover rounded-lg border border-gray-200 cursor-pointer hover:opacity-90 transition-opacity"
+                            onClick={() => {
+                              // Open image in new tab
+                              window.open(ImageService.getImageUrl(selectedIssue.image_cid, filename), '_blank');
+                            }}
+                          />
+                          <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-10 rounded-lg transition-all duration-200 flex items-center justify-center">
+                            <ExternalLink className="w-5 h-5 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-center py-8 text-gray-500">
+                      <div className="w-16 h-16 bg-gray-100 rounded-lg mx-auto mb-3 flex items-center justify-center">
+                        <Eye className="w-8 h-8 text-gray-400" />
+                      </div>
+                      <p>No visual evidence provided</p>
+                    </div>
+                  )}
+
+                  {/* Coordinates */}
+                  <div className="mt-6 p-4 bg-gray-50 rounded-lg">
+                    <h4 className="font-medium mb-2">Location Coordinates</h4>
+                    <div className="text-sm text-gray-600 space-y-1">
+                      <div>Latitude: {selectedIssue.latitude}</div>
+                      <div>Longitude: {selectedIssue.longitude}</div>
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="mt-2 w-full"
+                      onClick={() => {
+                        const lat = parseCoordinate(selectedIssue.latitude);
+                        const lng = parseCoordinate(selectedIssue.longitude);
+                        window.open(`https://www.google.com/maps?q=${lat},${lng}`, '_blank');
+                      }}
+                    >
+                      <ExternalLink className="w-3 h-3 mr-1" />
+                      Open in Google Maps
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

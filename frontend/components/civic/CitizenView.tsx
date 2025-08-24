@@ -4,6 +4,8 @@ import { IssueCard } from "./IssueCard";
 import { IssuesMap } from "./IssuesMap";
 import { useAllIssues, useFilteredIssues } from "@/hooks/useIssues";
 import { useNearestWard } from "@/hooks/useWards";
+import { useVotedIssues } from "@/hooks/useVotedIssues";
+import { IssueService } from "@/services/IssueService";
 import { ISSUE_STATUS } from "@/constants";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -16,6 +18,7 @@ export function CitizenView() {
   const { account } = useWallet();
   const { data: allIssues = [], isLoading } = useAllIssues();
   const { nearestWard, locationLoading, location, locationError, getCurrentLocation } = useNearestWard();
+  const { votedIssues } = useVotedIssues();
   
   // View states - replacing modals with inline views
   const [activeTab, setActiveTab] = useState("overview");
@@ -24,11 +27,61 @@ export function CitizenView() {
   const userAddress = account?.address.toString();
 
   // Filter issues for voting (pending verification or completion verification)
+  console.log("=== VOTING ISSUES FILTER DEBUG ===");
+  console.log("Filter parameters:", {
+    status: [ISSUE_STATUS.PENDING_VERIFICATION, ISSUE_STATUS.PENDING_COMPLETION_VERIFICATION],
+    excludeUserVoted: true,
+    userAddress,
+  });
+  
   const votingIssues = useFilteredIssues(allIssues, {
     status: [ISSUE_STATUS.PENDING_VERIFICATION, ISSUE_STATUS.PENDING_COMPLETION_VERIFICATION],
     excludeUserVoted: true,
     userAddress,
   });
+  
+  console.log("Voting issues result:", votingIssues);
+  console.log("Issue #0 in result:", votingIssues.find(i => i.id === 0));
+  console.log("=====================================");
+
+  // Debug: Add logging to understand filtering
+  console.log("=== VOTING DEBUG INFO ===");
+  console.log("User Address:", userAddress);
+  console.log("User Ward:", nearestWard);
+  console.log("All Issues:", allIssues.length);
+  console.log("Issues in Ward 1:", allIssues.filter(i => i.ward === 1).length);
+  console.log("Issues with PENDING_COMPLETION_VERIFICATION:", allIssues.filter(i => i.status === ISSUE_STATUS.PENDING_COMPLETION_VERIFICATION).length);
+  console.log("Issues with PENDING_COMPLETION_VERIFICATION in Ward 1:", allIssues.filter(i => i.status === ISSUE_STATUS.PENDING_COMPLETION_VERIFICATION && i.ward === 1).length);
+  console.log("Voting Issues (after filtering):", votingIssues.length);
+  console.log("Voting Issues Details:", votingIssues.map(i => ({ id: i.id, status: i.status, ward: i.ward })));
+  
+  // Debug: Show issues without excludeUserVoted filter
+  const votingIssuesNoFilter = useFilteredIssues(allIssues, {
+    status: [ISSUE_STATUS.PENDING_VERIFICATION, ISSUE_STATUS.PENDING_COMPLETION_VERIFICATION],
+    excludeUserVoted: false,
+    userAddress,
+  });
+  console.log("Voting Issues (without user voted filter):", votingIssuesNoFilter.length);
+  
+  // Debug: Manually check Issue #0 specifically
+  const issue0 = allIssues.find(i => i.id === 0);
+  if (issue0) {
+    console.log("=== ISSUE #0 SPECIFIC DEBUG ===");
+    console.log("Issue #0 details:", issue0);
+    console.log("Issue #0 status:", issue0.status);
+    console.log("Issue #0 ward:", issue0.ward);
+    console.log("Issue #0 completion_voters:", issue0.completion_voters);
+    
+    // Check voting status manually
+    const hasVotedOnBlockchain = IssueService.hasUserVotedOnCompletion(issue0, userAddress || "");
+    const hasVotedLocal = votedIssues.some(v => v.issueId === issue0.id && v.voteType === "completion");
+    
+    console.log("Issue #0 hasVotedOnBlockchain:", hasVotedOnBlockchain);
+    console.log("Issue #0 hasVotedLocal:", hasVotedLocal);
+    console.log("Issue #0 should be filtered?", hasVotedOnBlockchain || hasVotedLocal);
+    console.log("User address in completion_voters?", issue0.completion_voters.includes(userAddress || ""));
+  }
+  console.log("========================");
 
   // Filter user's reported issues
   const userIssues = allIssues.filter(issue => 
@@ -49,140 +102,143 @@ export function CitizenView() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
-      <div className="max-w-7xl mx-auto px-4 py-6">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-purple-50/20 relative">
+      {/* Background Pattern */}
+      <div className="absolute inset-0 opacity-50" style={{backgroundImage: "url(\"data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%239C92AC' fill-opacity='0.02'%3E%3Ccircle cx='30' cy='30' r='1'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E\")"}}></div>
+      
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 lg:py-8 relative">
         
         {/* Header Section with Location & Quick Stats */}
-        <div className="mb-8">
-          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 mb-6">
-            <div>
-              <div className="flex items-center gap-2 mb-2">
-                <h1 className="text-3xl font-bold text-gray-900">Civic Dashboard</h1>
+        <div className="mb-10 lg:mb-12">
+          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6 mb-8">
+            <div className="space-y-3">
+              <div className="flex items-center gap-3 mb-2">
+                <h1 className="text-4xl lg:text-5xl font-black text-transparent bg-clip-text bg-gradient-to-r from-gray-900 via-blue-800 to-purple-800 tracking-tight leading-tight">
+                  CivicChain
+                </h1>
                 {locationLoading && (
-                  <div className="flex items-center gap-1 text-blue-600 bg-blue-50 px-2 py-1 rounded-full text-xs">
-                    <Loader2 className="h-3 w-3 animate-spin" />
-                    Locating...
+                  <div className="flex items-center gap-2 text-blue-600 bg-white/80 backdrop-blur-sm px-3 py-1.5 rounded-full text-sm shadow-lg border border-blue-100">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    <span className="font-medium">Locating...</span>
                   </div>
                 )}
                 {nearestWard && !locationLoading && (
-                  <Badge variant="secondary" className="bg-green-50 text-green-700 border-green-200">
-                    <MapPin className="h-3 w-3 mr-1" />
+                  <Badge className="bg-gradient-to-r from-emerald-100 to-green-100 text-emerald-800 border-emerald-200 px-4 py-2 text-sm font-bold rounded-full shadow-lg hover:shadow-xl transition-all duration-300">
+                    <MapPin className="h-4 w-4 mr-1.5" />
                     Ward {nearestWard}
                   </Badge>
                 )}
               </div>
-              <p className="text-gray-600">
-                Engage with your community • Report issues • Drive positive change
+              <p className="text-lg text-gray-600 font-medium leading-relaxed max-w-2xl">
+                Empowering civic engagement • Building stronger communities • Driving positive change
               </p>
             </div>
             
             <Button 
-              onClick={() => setShowReportForm(!showReportForm)}
-              className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white px-6 py-2 shadow-lg hover:shadow-xl transition-all duration-300"
+              onClick={() => {
+                setShowReportForm(true);
+                setActiveTab("overview"); // Will be overridden by the tab value logic
+              }}
+              className="bg-gradient-to-r from-blue-600 via-blue-700 to-purple-600 hover:from-blue-700 hover:via-blue-800 hover:to-purple-700 text-white px-8 py-4 text-lg font-bold shadow-2xl hover:shadow-3xl transition-all duration-300 transform hover:scale-105 rounded-2xl border border-blue-500/20"
             >
-              <Plus className="mr-2 h-4 w-4" />
+              <Plus className="mr-2 h-5 w-5" />
               Report Issue
             </Button>
           </div>
 
           {/* Quick Stats Bar */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-            <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-blue-50 rounded-lg">
-                  <TrendingUp className="h-4 w-4 text-blue-600" />
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6">
+            <div className="group bg-white/90 backdrop-blur-sm rounded-2xl p-6 shadow-xl hover:shadow-2xl border border-white/50 hover:border-blue-200/50 transition-all duration-300 hover:scale-105">
+              <div className="flex items-center gap-4">
+                <div className="p-3 bg-gradient-to-br from-blue-100 to-blue-200 rounded-xl shadow-lg group-hover:shadow-xl transition-all duration-300">
+                  <TrendingUp className="h-6 w-6 text-blue-700" />
                 </div>
                 <div>
-                  <div className="text-lg font-bold text-gray-900">{allIssues.length}</div>
-                  <div className="text-xs text-gray-500">Total Issues</div>
+                  <div className="text-2xl font-black bg-gradient-to-r from-blue-600 to-blue-800 bg-clip-text text-transparent mb-1">{allIssues.length}</div>
+                  <div className="text-sm font-bold text-gray-600 uppercase tracking-wider">Total Issues</div>
                 </div>
               </div>
             </div>
             
-            <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-purple-50 rounded-lg">
-                  <Vote className="h-4 w-4 text-purple-600" />
+            <div className="group bg-white/90 backdrop-blur-sm rounded-2xl p-6 shadow-xl hover:shadow-2xl border border-white/50 hover:border-purple-200/50 transition-all duration-300 hover:scale-105">
+              <div className="flex items-center gap-4">
+                <div className="p-3 bg-gradient-to-br from-purple-100 to-purple-200 rounded-xl shadow-lg group-hover:shadow-xl transition-all duration-300">
+                  <Vote className="h-6 w-6 text-purple-700" />
                 </div>
                 <div>
-                  <div className="text-lg font-bold text-gray-900">{votingIssues.length}</div>
-                  <div className="text-xs text-gray-500">Need Votes</div>
+                  <div className="text-2xl font-black bg-gradient-to-r from-purple-600 to-purple-800 bg-clip-text text-transparent mb-1">{votingIssues.length}</div>
+                  <div className="text-sm font-bold text-gray-600 uppercase tracking-wider">Votes Needed</div>
                 </div>
               </div>
             </div>
             
-            <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-green-50 rounded-lg">
-                  <Eye className="h-4 w-4 text-green-600" />
+            <div className="group bg-white/90 backdrop-blur-sm rounded-2xl p-6 shadow-xl hover:shadow-2xl border border-white/50 hover:border-orange-200/50 transition-all duration-300 hover:scale-105">
+              <div className="flex items-center gap-4">
+                <div className="p-3 bg-gradient-to-br from-orange-100 to-orange-200 rounded-xl shadow-lg group-hover:shadow-xl transition-all duration-300">
+                  <Eye className="h-6 w-6 text-orange-700" />
                 </div>
                 <div>
-                  <div className="text-lg font-bold text-gray-900">{userIssues.length}</div>
-                  <div className="text-xs text-gray-500">My Reports</div>
+                  <div className="text-2xl font-black bg-gradient-to-r from-orange-600 to-orange-800 bg-clip-text text-transparent mb-1">{userIssues.length}</div>
+                  <div className="text-sm font-bold text-gray-600 uppercase tracking-wider">My Reports</div>
                 </div>
               </div>
             </div>
             
-            <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-emerald-50 rounded-lg">
-                  <CheckCircle className="h-4 w-4 text-emerald-600" />
+            <div className="group bg-white/90 backdrop-blur-sm rounded-2xl p-6 shadow-xl hover:shadow-2xl border border-white/50 hover:border-emerald-200/50 transition-all duration-300 hover:scale-105">
+              <div className="flex items-center gap-4">
+                <div className="p-3 bg-gradient-to-br from-emerald-100 to-emerald-200 rounded-xl shadow-lg group-hover:shadow-xl transition-all duration-300">
+                  <CheckCircle className="h-6 w-6 text-emerald-700" />
                 </div>
                 <div>
-                  <div className="text-lg font-bold text-gray-900">
+                  <div className="text-2xl font-black bg-gradient-to-r from-emerald-600 to-emerald-800 bg-clip-text text-transparent mb-1">
                     {allIssues.filter(i => i.status === ISSUE_STATUS.FULLY_RESOLVED).length}
                   </div>
-                  <div className="text-xs text-gray-500">Resolved</div>
+                  <div className="text-sm font-bold text-gray-600 uppercase tracking-wider">Resolved</div>
                 </div>
               </div>
             </div>
           </div>
         </div>
 
-        {/* Report Form - Inline when activated */}
-        {showReportForm && (
-          <Card className="mb-8 border-0 shadow-lg">
-            <CardHeader className="pb-4">
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-xl text-gray-900">Report New Issue</CardTitle>
-                <Button 
-                  variant="ghost" 
-                  size="sm" 
-                  onClick={() => setShowReportForm(false)}
-                  className="text-gray-500 hover:text-gray-700"
-                >
-                  ✕
-                </Button>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <IssueForm onSuccess={() => setShowReportForm(false)} />
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Main Content Tabs */}
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-5 mb-8 bg-white shadow-sm border border-gray-100">
-            <TabsTrigger value="overview" className="flex items-center gap-2">
+        {/* Main Content Tabs - Always visible for navigation */}
+        <Tabs value={showReportForm ? "report" : activeTab} onValueChange={(value) => {
+          if (value === "report") {
+            setShowReportForm(true);
+            setActiveTab("overview"); // Keep overview as the default when closing report form
+          } else {
+            setShowReportForm(false);
+            setActiveTab(value);
+          }
+        }} className="w-full">
+          <TabsList className="grid w-full grid-cols-6 mb-10 bg-gray-100 p-1 rounded-xl">
+            <TabsTrigger value="overview" className="flex items-center gap-2 px-3 py-3 text-sm font-medium data-[state=active]:bg-white data-[state=active]:text-blue-600 data-[state=active]:shadow-sm rounded-lg transition-all duration-200">
               <TrendingUp className="h-4 w-4" />
-              Overview
+              <span className="hidden sm:inline">Overview</span>
             </TabsTrigger>
-            <TabsTrigger value="map" className="flex items-center gap-2">
+            <TabsTrigger value="report" className="flex items-center gap-2 px-3 py-3 text-sm font-medium data-[state=active]:bg-white data-[state=active]:text-green-600 data-[state=active]:shadow-sm rounded-lg transition-all duration-200">
+              <Plus className="h-4 w-4" />
+              <span className="hidden sm:inline">Report</span>
+            </TabsTrigger>
+            <TabsTrigger value="map" className="flex items-center gap-2 px-3 py-3 text-sm font-medium data-[state=active]:bg-white data-[state=active]:text-emerald-600 data-[state=active]:shadow-sm rounded-lg transition-all duration-200">
               <MapIcon className="h-4 w-4" />
-              Map
+              <span className="hidden sm:inline">Map</span>
             </TabsTrigger>
-            <TabsTrigger value="vote" className="flex items-center gap-2">
+            <TabsTrigger value="vote" className="flex items-center gap-2 px-3 py-3 text-sm font-medium data-[state=active]:bg-white data-[state=active]:text-purple-600 data-[state=active]:shadow-sm rounded-lg transition-all duration-200">
               <Vote className="h-4 w-4" />
-              Vote ({votingIssues.length})
+              <span className="hidden sm:inline">Vote</span>
+              {votingIssues.length > 0 && (
+                <span className="bg-purple-100 text-purple-600 text-xs font-semibold px-2 py-0.5 rounded-full ml-1">
+                  {votingIssues.length}
+                </span>
+              )}
             </TabsTrigger>
-            <TabsTrigger value="my-reports" className="flex items-center gap-2">
+            <TabsTrigger value="my-reports" className="flex items-center gap-2 px-3 py-3 text-sm font-medium data-[state=active]:bg-white data-[state=active]:text-orange-600 data-[state=active]:shadow-sm rounded-lg transition-all duration-200">
               <Eye className="h-4 w-4" />
-              My Reports
+              <span className="hidden sm:inline">Reports</span>
             </TabsTrigger>
-            <TabsTrigger value="community" className="flex items-center gap-2">
+            <TabsTrigger value="community" className="flex items-center gap-2 px-3 py-3 text-sm font-medium data-[state=active]:bg-white data-[state=active]:text-indigo-600 data-[state=active]:shadow-sm rounded-lg transition-all duration-200">
               <Users className="h-4 w-4" />
-              Community
+              <span className="hidden sm:inline">Community</span>
             </TabsTrigger>
           </TabsList>
 
@@ -199,7 +255,10 @@ export function CitizenView() {
                     Start making a difference in your community by reporting your first civic issue.
                   </p>
                   <Button 
-                    onClick={() => setShowReportForm(true)}
+                    onClick={() => {
+                      setShowReportForm(true);
+                      setActiveTab("overview"); // This will trigger the tab change logic
+                    }}
                     className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white px-6 py-2"
                   >
                     <Plus className="mr-2 h-4 w-4" />
@@ -306,6 +365,31 @@ export function CitizenView() {
                 </div>
               </div>
             )}
+          </TabsContent>
+
+          {/* Report Tab */}
+          <TabsContent value="report" className="space-y-6">
+            <Card className="border-0 shadow-2xl bg-white/95 backdrop-blur-sm rounded-3xl overflow-hidden">
+              <CardHeader className="pb-6 bg-gradient-to-r from-blue-50 to-purple-50 border-b border-gray-100/50">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="flex items-center gap-3 text-2xl font-black text-transparent bg-clip-text bg-gradient-to-r from-blue-700 to-purple-700">
+                    <div className="p-2 bg-gradient-to-br from-blue-100 to-purple-100 rounded-xl">
+                      <Plus className="h-6 w-6 text-blue-700" />
+                    </div>
+                    Report New Issue
+                  </CardTitle>
+                </div>
+                <p className="text-gray-600 mt-2 font-medium">
+                  Help improve your community by reporting civic issues that need attention. Use the tabs above to navigate back to other sections.
+                </p>
+              </CardHeader>
+              <CardContent className="p-8">
+                <IssueForm onSuccess={() => {
+                  setShowReportForm(false);
+                  setActiveTab("overview");
+                }} />
+              </CardContent>
+            </Card>
           </TabsContent>
 
           {/* Map Tab */}
@@ -513,7 +597,10 @@ export function CitizenView() {
                     Start contributing to your community by reporting your first civic issue.
                   </p>
                   <Button 
-                    onClick={() => setShowReportForm(true)}
+                    onClick={() => {
+                      setShowReportForm(true);
+                      setActiveTab("overview"); // This will trigger the tab change logic
+                    }}
                     className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white"
                   >
                     <Plus className="mr-2 h-4 w-4" />

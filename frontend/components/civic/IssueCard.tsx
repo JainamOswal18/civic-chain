@@ -33,23 +33,23 @@ export function IssueCard({
   const getStatusColor = (status: number) => {
     switch (status) {
       case ISSUE_STATUS.PENDING_VERIFICATION:
-        return "bg-yellow-100 text-yellow-800 border-yellow-300";
+        return "bg-gradient-to-r from-red-100 to-red-200 text-red-800 border-red-200 shadow-lg";
       case ISSUE_STATUS.VERIFIED:
-        return "bg-blue-100 text-blue-800 border-blue-300";
+        return "bg-gradient-to-r from-amber-100 to-yellow-200 text-amber-800 border-amber-200 shadow-lg";
       case ISSUE_STATUS.ACKNOWLEDGED:
-        return "bg-purple-100 text-purple-800 border-purple-300";
+        return "bg-gradient-to-r from-blue-100 to-blue-200 text-blue-800 border-blue-200 shadow-lg";
       case ISSUE_STATUS.IN_PROGRESS:
-        return "bg-orange-100 text-orange-800 border-orange-300";
+        return "bg-gradient-to-r from-purple-100 to-purple-200 text-purple-800 border-purple-200 shadow-lg";
       case ISSUE_STATUS.COMPLETED:
-        return "bg-green-100 text-green-800 border-green-300";
+        return "bg-gradient-to-r from-green-100 to-green-200 text-green-800 border-green-200 shadow-lg";
       case ISSUE_STATUS.PENDING_COMPLETION_VERIFICATION:
-        return "bg-indigo-100 text-indigo-800 border-indigo-300";
+        return "bg-gradient-to-r from-cyan-100 to-cyan-200 text-cyan-800 border-cyan-200 shadow-lg";
       case ISSUE_STATUS.FULLY_RESOLVED:
-        return "bg-emerald-100 text-emerald-800 border-emerald-300";
+        return "bg-gradient-to-r from-emerald-100 to-emerald-200 text-emerald-800 border-emerald-200 shadow-lg";
       case ISSUE_STATUS.SPAM:
-        return "bg-red-100 text-red-800 border-red-300";
+        return "bg-gradient-to-r from-gray-100 to-gray-200 text-gray-800 border-gray-200 shadow-lg";
       default:
-        return "bg-gray-100 text-gray-800 border-gray-300";
+        return "bg-gradient-to-r from-gray-100 to-gray-200 text-gray-800 border-gray-200 shadow-lg";
     }
   };
 
@@ -64,19 +64,20 @@ export function IssueCard({
     issue.status === ISSUE_STATUS.PENDING_COMPLETION_VERIFICATION;
 
   return (
-    <Card className="w-full">
-      <CardHeader className="pb-3">
-        <div className="flex items-start justify-between">
-          <CardTitle className="text-lg font-semibold">
+    <Card className="w-full bg-white/95 backdrop-blur-sm border-0 shadow-xl hover:shadow-2xl transition-all duration-300 hover:scale-[1.02] rounded-2xl overflow-hidden">
+      <CardHeader className="pb-4 bg-gradient-to-r from-gray-50 to-blue-50/30 border-b border-gray-100/50">
+        <div className="flex items-start justify-between gap-4">
+          <CardTitle className="text-xl font-black text-gray-900 leading-tight flex items-center gap-2">
+            <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
             {issue.category}
           </CardTitle>
-          <Badge className={`${getStatusColor(issue.status)} border`}>
+          <Badge className={`${getStatusColor(issue.status)} border font-bold px-3 py-1.5 text-sm rounded-full`}>
             {STATUS_LABELS[issue.status as keyof typeof STATUS_LABELS]}
           </Badge>
         </div>
       </CardHeader>
       
-      <CardContent className="space-y-4">
+      <CardContent className="space-y-6 p-6">
         {/* Description */}
         <p className="text-sm text-muted-foreground leading-relaxed">
           {issue.description}
@@ -174,21 +175,36 @@ export function IssueCard({
         )}
 
         {/* Issue Details */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
-          <div className="flex items-center gap-2">
-            <User className="h-4 w-4 text-muted-foreground" />
-            <span>Reporter: {formatAddress(issue.reporter)}</span>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 p-4 bg-gradient-to-r from-gray-50 to-blue-50/30 rounded-xl border border-gray-100/50">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-purple-100 rounded-lg">
+              <User className="h-4 w-4 text-purple-600" />
+            </div>
+            <div>
+              <div className="text-xs text-gray-500 font-medium uppercase tracking-wide">Reporter</div>
+              <div className="font-mono text-sm font-bold text-gray-800">{formatAddress(issue.reporter)}</div>
+            </div>
           </div>
           
-          <div className="flex items-center gap-2">
-            <Calendar className="h-4 w-4 text-muted-foreground" />
-            <span>Reported: {formatDate(issue.created_at)}</span>
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-blue-100 rounded-lg">
+              <Calendar className="h-4 w-4 text-blue-600" />
+            </div>
+            <div>
+              <div className="text-xs text-gray-500 font-medium uppercase tracking-wide">Reported</div>
+              <div className="text-sm font-bold text-gray-800">{formatDate(issue.created_at)}</div>
+            </div>
           </div>
 
           {showLocation && (
-            <div className="flex items-center gap-2">
-              <MapPin className="h-4 w-4 text-muted-foreground" />
-              <span>Ward: {issue.ward}</span>
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-emerald-100 rounded-lg">
+                <MapPin className="h-4 w-4 text-emerald-600" />
+              </div>
+              <div>
+                <div className="text-xs text-gray-500 font-medium uppercase tracking-wide">Location</div>
+                <div className="text-sm font-bold text-gray-800">Ward {issue.ward}</div>
+              </div>
             </div>
           )}
 
